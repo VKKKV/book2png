@@ -150,16 +150,20 @@ pub fn decode(alloc: Allocator, bytes: []const u8) !Image {
     var color_type: u8 = 0;
     var interlace: u8 = 0;
     var have_ihdr = false;
+    var have_iend = false;
 
     var idat: std.ArrayList(u8) = .empty;
     defer idat.deinit(alloc);
 
     var pos: usize = 8;
     while (pos + 8 <= bytes.len) {
+        if (bytes.len - pos < 12) return Error.Truncated;
         const len: usize = std.mem.readInt(u32, bytes[pos..][0..4], .big);
         const tag = bytes[pos + 4 ..][0..4];
-        if (pos + 12 + len > bytes.len) return Error.Truncated;
+        if (len > bytes.len - pos - 12) return Error.Truncated;
         const data = bytes[pos + 8 ..][0..len];
+        const stored_crc = std.mem.readInt(u32, bytes[pos + 8 + len ..][0..4], .big);
+        if (chunkCrc(tag, data) != stored_crc) return Error.BadChunk;
 
         if (std.mem.eql(u8, tag, "IHDR")) {
             if (len != 13) return Error.BadChunk;
@@ -172,12 +176,14 @@ pub fn decode(alloc: Allocator, bytes: []const u8) !Image {
         } else if (std.mem.eql(u8, tag, "IDAT")) {
             try idat.appendSlice(alloc, data);
         } else if (std.mem.eql(u8, tag, "IEND")) {
+            if (len != 0) return Error.BadChunk;
+            have_iend = true;
             break;
         }
         pos += 12 + len;
     }
 
-    if (!have_ihdr) return Error.BadChunk;
+    if (!have_ihdr or !have_iend) return Error.Truncated;
     if (color_type != 0) return Error.UnsupportedFormat; // grayscale only
     if (interlace != 0) return Error.UnsupportedFormat;
     if (bit_depth != 8 and bit_depth != 1) return Error.UnsupportedFormat;
@@ -217,6 +223,8 @@ fn unfilter(
     bit_depth: u8,
 ) !void {
     const row_bytes = if (bit_depth == 1) (@as(usize, width) + 7) / 8 else width;
+    const expected = (row_bytes + 1) * @as(usize, height);
+    if (raw.len != expected) return Error.Truncated;
     const stride = @as(usize, width);
 
     var prev = try alloc.alloc(u8, row_bytes);
@@ -229,7 +237,6 @@ fn unfilter(
     var y: usize = 0;
     while (y < height) : (y += 1) {
         const start = y * (row_bytes + 1);
-        if (start + 1 + row_bytes > raw.len) return; // truncated: stop early
         const filter = raw[start];
         const line = raw[start + 1 ..][0..row_bytes];
 
@@ -239,11 +246,12 @@ fn unfilter(
             const b: u8 = prev[x];
             const c: u8 = if (x >= bpp) prev[x - bpp] else 0;
             cur[x] = switch (filter) {
+                0 => line[x],
                 1 => line[x] +% a,
                 2 => line[x] +% b,
                 3 => line[x] +% @as(u8, @truncate((@as(u16, a) + b) / 2)),
                 4 => line[x] +% paeth(a, b, c),
-                else => line[x],
+                else => return Error.UnsupportedFormat,
             };
         }
 
@@ -292,6 +300,31 @@ test "writer -> decode round trip (gray8)" {
     try std.testing.expectEqual(@as(u32, w), img.width);
     try std.testing.expectEqual(@as(u32, h), img.height);
     try std.testing.expectEqualSlices(u8, &pixels, img.pixels);
+}
+
+test "writer -> decode rejects a corrupted chunk" {
+    const alloc = std.testing.allocator;
+    var sink: Io.Writer.Allocating = try .initCapacity(alloc, 1 << 12);
+    defer sink.deinit();
+
+    var wr: Writer = undefined;
+    try wr.init(alloc, &sink.writer, 1, 1, 8, flate.Compress.Options.default);
+    defer wr.deinit();
+    try wr.writeRow(&.{0});
+    try wr.finish();
+
+    const bytes = sink.writer.buffered();
+    const corrupted = try alloc.dupe(u8, bytes);
+    defer alloc.free(corrupted);
+    corrupted[corrupted.len - 1] ^= 1;
+    try std.testing.expectError(Error.BadChunk, decode(alloc, corrupted));
+}
+
+test "unfilter rejects truncated and unknown rows" {
+    const alloc = std.testing.allocator;
+    var out: [1]u8 = undefined;
+    try std.testing.expectError(Error.Truncated, unfilter(alloc, &.{0}, &out, 1, 1, 8));
+    try std.testing.expectError(Error.UnsupportedFormat, unfilter(alloc, &.{ 9, 0 }, &out, 1, 1, 8));
 }
 
 test "writer -> decode round trip (1-bit)" {

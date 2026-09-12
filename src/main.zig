@@ -105,11 +105,11 @@ pub fn main(init: std.process.Init) !void {
             if (std.mem.eql(u8, name, "--width")) {
                 opts.render.width = try parseU32(take(args, &i, inline_value) orelse return argError(name));
             } else if (std.mem.eql(u8, name, "--size")) {
-                opts.render.size = try parseF32(take(args, &i, inline_value) orelse return argError(name));
+                opts.render.size = try parsePositiveF32(take(args, &i, inline_value) orelse return argError(name));
             } else if (std.mem.eql(u8, name, "--margin")) {
                 opts.render.margin = try parseU32(take(args, &i, inline_value) orelse return argError(name));
             } else if (std.mem.eql(u8, name, "--leading")) {
-                opts.render.leading = try parseF32(take(args, &i, inline_value) orelse return argError(name));
+                opts.render.leading = try parsePositiveF32(take(args, &i, inline_value) orelse return argError(name));
             } else if (std.mem.eql(u8, name, "--font")) {
                 opts.font_path = take(args, &i, inline_value) orelse return argError(name);
             } else if (std.mem.eql(u8, name, "--level")) {
@@ -167,6 +167,12 @@ fn parseU32(s: []const u8) !u32 {
 
 fn parseF32(s: []const u8) !f32 {
     return std.fmt.parseFloat(f32, s) catch argError("a number");
+}
+
+fn parsePositiveF32(s: []const u8) !f32 {
+    const value = try parseF32(s);
+    if (!std.math.isFinite(value) or value <= 0) argError("a positive finite number");
+    return value;
 }
 
 fn log(quiet: bool, comptime fmt: []const u8, args: anytype) void {
@@ -311,8 +317,12 @@ fn runDecode(alloc: Allocator, io: Io, input_path: []const u8, output_path: []co
 }
 
 fn fileExists(io: Io, path: []const u8) bool {
-    if (!std.fs.path.isAbsolute(path)) return false;
-    if (std.Io.Dir.accessAbsolute(io, path, .{ .read = true })) |_| return true else |_| return false;
+    if (std.fs.path.isAbsolute(path)) {
+        std.Io.Dir.accessAbsolute(io, path, .{ .read = true }) catch return false;
+        return true;
+    }
+    std.Io.Dir.cwd().access(io, path, .{ .read = true }) catch return false;
+    return true;
 }
 
 fn listFonts(alloc: Allocator, io: Io) !void {

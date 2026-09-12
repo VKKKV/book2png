@@ -7,9 +7,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const block_tags = [_][]const u8{
-    "p",     "div",    "br",   "h1",   "h2",    "h3",   "h4", "h5",
-    "h6",    "li",     "tr",   "td",   "th",    "section", "article",
-    "blockquote", "hr", "figcaption", "pre",
+    "p",  "div",        "br",  "h1", "h2", "h3",      "h4",      "h5",
+    "h6", "li",         "tr",  "td", "th", "section", "article", "blockquote",
+    "hr", "figcaption", "pre",
 };
 
 const skip_tags = [_][]const u8{ "script", "style", "head", "title" };

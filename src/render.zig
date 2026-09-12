@@ -99,7 +99,7 @@ pub fn layout(alloc: Allocator, font: *const Font, text: []const u8, usable: f32
         const cp = std.unicode.utf8Decode(slice) catch 0xfffd;
         var adv = font.advance(cp);
         if (prev_cp) |p| adv += font.kern(p, cp);
-        if (x + adv > usable and it.i > line_start + 1) {
+        if (x + adv > usable and last_end > line_start) {
             try lines.append(alloc, .{ .start = line_start, .end = last_end });
             line_start = last_end;
             x = 0;
@@ -125,16 +125,24 @@ pub const Renderer = struct {
     scratch: []u8 = &.{},
 
     pub fn init(alloc: Allocator, font: *const Font, opts: Options) !Renderer {
+        if (!std.math.isFinite(opts.size) or opts.size <= 0 or
+            !std.math.isFinite(opts.leading) or opts.leading <= 0)
+            return error.InvalidOptions;
         const line_height_f = opts.size * opts.leading;
+        if (!std.math.isFinite(line_height_f) or
+            line_height_f > @as(f32, @floatFromInt(std.math.maxInt(u32))))
+            return error.InvalidOptions;
         const content = font.ascent - font.descent;
         const pad = @max(0.0, (line_height_f - content) / 2.0);
+        const line_height: u32 = @intFromFloat(@ceil(@max(line_height_f, content + 1)));
+        const line_pixels = std.math.mul(usize, opts.width, line_height) catch return error.ImageTooLarge;
         return .{
             .alloc = alloc,
             .font = font,
             .opts = opts,
-            .line_height = @intFromFloat(@ceil(@max(line_height_f, content + 1))),
+            .line_height = line_height,
             .baseline = @intFromFloat(@ceil(pad + font.ascent)),
-            .line_buf = try alloc.alloc(u8, @as(usize, opts.width) * @as(usize, @intFromFloat(@ceil(@max(line_height_f, content + 1))))),
+            .line_buf = try alloc.alloc(u8, line_pixels),
         };
     }
 

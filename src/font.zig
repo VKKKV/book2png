@@ -24,6 +24,8 @@ pub const Font = struct {
 
     pub fn init(alloc: Allocator, data: []const u8, pixel_height: f32) !Font {
         const storage = try alloc.create(FontInfoStorage);
+        errdefer alloc.destroy(storage);
+        if (data.len == 0) return error.BadFont;
         @memset(&storage.bytes, 0);
         const info: *c.stbtt_fontinfo = @ptrCast(&storage.bytes[0]);
 
