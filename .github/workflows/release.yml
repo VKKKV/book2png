@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-linux-gnu
+            archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-latest
+            target: aarch64-linux-gnu
+            archive: tar.gz
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-macos
+            archive: tar.gz
+          - name: macos-aarch64
+            os: macos-14
+            target: aarch64-macos
+            archive: tar.gz
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-windows-gnu
+            archive: zip
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: build
+        shell: bash
+        run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }} --prefix dist
+
+      - name: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          name=book2png-${{ github.ref_name }}-${{ matrix.name }}
+          mkdir -p pkg
+          cp LICENSE README.md pkg/
+          if [ -f dist/bin/book2png.exe ]; then
+            cp dist/bin/book2png.exe pkg/
+          else
+            cp dist/bin/book2png pkg/
+          fi
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd pkg && 7z a -tzip "../$name.zip" . >/dev/null)
+          else
+            tar -czf "$name.tar.gz" -C pkg .
+          fi
+          ls -l
+
+      - name: upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            book2png-*.tar.gz
+            book2png-*.zip
+          generate_release_notes: true
+
+      - name: upload workflow artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            book2png-*.tar.gz
+            book2png-*.zip
