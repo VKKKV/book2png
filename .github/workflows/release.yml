@@ -10,31 +10,25 @@ permissions:
 
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+    name: build all platforms
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x86_64
-            os: ubuntu-latest
             target: x86_64-linux-gnu
             archive: tar.gz
           - name: linux-aarch64
-            os: ubuntu-latest
             target: aarch64-linux-gnu
             archive: tar.gz
           - name: macos-x86_64
-            # cross-compiled from the arm64 runner: Intel macOS runners queue for a long time
-            os: macos-14
             target: x86_64-macos
             archive: tar.gz
           - name: macos-aarch64
-            os: macos-14
             target: aarch64-macos
             archive: tar.gz
           - name: windows-x86_64
-            os: windows-latest
             target: x86_64-windows-gnu
             archive: zip
     steps:
@@ -44,7 +38,6 @@ jobs:
           version: 0.16.0
 
       - name: build
-        shell: bash
         run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }} --prefix dist
 
       - name: package
@@ -60,26 +53,39 @@ jobs:
             cp dist/bin/book2png pkg/
           fi
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            (cd pkg && 7z a -tzip "../$name.zip" . >/dev/null)
+            (cd pkg && zip -q -r "../$name.zip" .)
           else
             tar -czf "$name.tar.gz" -C pkg .
           fi
           ls -l
 
-      - name: upload to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            book2png-*.tar.gz
-            book2png-*.zip
-          generate_release_notes: true
+      - name: verify binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          file dist/bin/book2png* || true
+          if [ -x dist/bin/book2png ] && [ "$(uname -m)" = "x86_64" ] && [ "${{ matrix.target }}" = "x86_64-linux-gnu" ]; then
+            dist/bin/book2png --version
+          fi
 
-      - name: upload workflow artifact
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: |
             book2png-*.tar.gz
             book2png-*.zip
+
+  publish:
+    name: publish release assets
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
