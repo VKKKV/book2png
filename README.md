@@ -117,11 +117,11 @@ book2png flow archwiki.html archwiki-1bit.png --width 12000 --size 8 --bilevel  
 
 预览（都截自上面那张图）：
 
-| 预览 | 说明 |
-|---|---|
-| `docs/archwiki-overview.png` | 整图缩略：5 822 页压成的一面「文字墙」 |
-| `docs/archwiki-crop.png` | 1:1 原始像素 |
-| `docs/archwiki-zoom.png` | 局部 4× 放大：8px 文字放大后可辨认 |
+![整站缩略：12000 × 101110 压到 150 px 宽（5822 页的一面「文字墙」）](docs/archwiki-overview.png)
+
+![1:1 原始像素：12000 宽的正文行，8px 字号密排](docs/archwiki-crop.png)
+
+![4× 放大：8px 文字放大后可辨认（近邻插值 4×，2800×600）](docs/archwiki-zoom.png)
 
 完整的 12000 × 101110 海报（24 MB，1-bit）挂在 [Releases](https://github.com/VKKKV/book2png/releases) 里可下载。
 
