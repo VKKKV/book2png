@@ -118,15 +118,13 @@ book2png flow archwiki.html archwiki-1bit.png \
 
 已有实测结果：`12000 × 101110`。
 
-- 灰度版本约 184 MB，约 179 s，放大后可读。
+- 灰度版本约 184 MB，约 179 s；放大后可用于机器识别（OCR），人眼阅读吃力。
 - `--bilevel` 版本约 24 MB，约 195 s；8px 下拉丁字母会失去可读性。
 - 全部语言合计约 40,122,659 个字符。
 
 预览（4× 放大）：
 
 ![4× 放大：近邻插值放大后的 8px 文字](docs/archwiki-zoom.png)
-
-完整的 1-bit 海报可从 [Releases](https://github.com/VKKKV/book2png/releases) 下载。
 
 ## 设计与限制
 
