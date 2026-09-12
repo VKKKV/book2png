@@ -25,7 +25,8 @@ jobs:
             target: aarch64-linux-gnu
             archive: tar.gz
           - name: macos-x86_64
-            os: macos-13
+            # cross-compiled from the arm64 runner: Intel macOS runners queue for a long time
+            os: macos-14
             target: x86_64-macos
             archive: tar.gz
           - name: macos-aarch64
