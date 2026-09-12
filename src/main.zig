@@ -52,12 +52,13 @@ const usage =
     \\  --leading <f>     line height = size * leading (default 1.15)
     \\  --latin-space     keep ASCII spaces (readable for Latin scripts)
     \\  --bilevel         1-bit black/white PNG (~10x smaller)
-    \\  --level <1|6|9>   deflate level: 1 fast, 6 default, 9 best
+    \\  --level <1..9>    deflate level: 1-4 fast, 5-7 default, 8-9 best (default 6)
+    \\  --quiet           suppress the statistics line
     \\
     \\Examples:
-    \\  book2png flow 红楼梦.epub hl.png --width 2000 --size 13
+    \\  book2png flow book.epub book.png --width 2000 --size 13
     \\  book2png flow alice.epub alice.png --latin-space
-    \\  book2png pixel hongloumeng.epub hl_pixel.png && book2png decode hl_pixel.png back.epub
+    \\  book2png pixel book.epub book_pixel.png && book2png decode book_pixel.png back.epub
     \\
 ;
 
