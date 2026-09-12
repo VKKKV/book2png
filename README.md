@@ -90,6 +90,41 @@ sha256sum 红楼梦.epub restored.epub      # 一致
 | Alice in Wonderland epub | 2000px / 13px `--latin-space` | 2000×5400 | 1.2 MB | 0.7 s |
 | 红楼梦 epub（整本 1.1 MB） | `pixel` + `decode` | 1073×1073 | 1.1 MB | 30 ms，sha256 一致 |
 
+## 示例：整个 Arch Wiki → 一张 PNG
+
+输入不是网页抓取，而是 Arch 官方离线文档包 [`arch-wiki-docs`](https://archlinux.org/packages/extra/any/arch-wiki-docs/)（39 种语言的 wiki 页面，5 822 个 HTML，206 MB）：
+
+```bash
+# 1) 官方离线包（单个压缩包，不需要逐页抓 wiki）
+curl -L -o arch-wiki-docs.pkg.tar.zst https://archlinux.org/packages/extra/any/arch-wiki-docs/download/
+bsdtar -xf arch-wiki-docs.pkg.tar.zst usr/share/doc/arch-wiki/html
+
+# 2) 按语言目录顺序拼成一个大 HTML
+find usr/share/doc/arch-wiki/html -name '*.html' | sort | xargs cat > archwiki.html
+
+# 3) 出图
+book2png flow archwiki.html archwiki.png --width 12000 --size 8                  # 灰阶：放大可读
+book2png flow archwiki.html archwiki-1bit.png --width 12000 --size 8 --bilevel  # 黑白：体积 1/8
+```
+
+| 产物 | 尺寸 | 体积 | 耗时 |
+|---|---|---|---|
+| 灰阶（放大可读） | 12000 × 101110 | 184 MB | 179 s |
+| `--bilevel`（海报/极限压体积） | 12000 × 101110 | 24 MB | 195 s |
+
+40 122 659 个字符（全部语言）落进一张 PNG。`--bilevel` 体积只有 1/8，代价是没有抗锯齿——8px 下拉丁字母会糊到认不出
+（本机用 tesseract 对照验证：同尺寸灰阶能 OCR 出完整句子，1-bit 全是乱码）。**要人能读就别开 `--bilevel`。**
+
+预览（都截自上面那张图）：
+
+| 预览 | 说明 |
+|---|---|
+| `docs/archwiki-overview.png` | 整图缩略：5 822 页压成的一面「文字墙」 |
+| `docs/archwiki-crop.png` | 1:1 原始像素 |
+| `docs/archwiki-zoom.png` | 局部 4× 放大：8px 文字放大后可辨认 |
+
+完整的 12000 × 101110 海报（24 MB，1-bit）挂在 [Releases](https://github.com/VKKKV/book2png/releases) 里可下载。
+
 ## 设计要点
 
 - **流式渲染**：先测量换行（只存行偏移），再逐行光栅化、逐行写 PNG 行数据；整本《红楼梦》峰值内存里没有整张图片，只有一行条带 + 压缩缓冲。
@@ -120,5 +155,13 @@ spaces stripped) into one very tall PNG, `pixel` stores one file byte per pixel
 No system dependencies: EPUB/zip parsing and zlib come from the Zig standard library,
 glyph rasterisation from vendored stb_truetype, so all three platforms build with a
 single `zig build`. See the tables above for options and real measurements.
+
+**Whole-corpus example:** the entire Arch Wiki — the official offline
+[`arch-wiki-docs`](https://archlinux.org/packages/extra/any/arch-wiki-docs/) package
+(39 languages, 5,822 HTML pages, 206 MB) — rendered into a single 12000 × 101110 PNG
+holding 40.1 M characters. Grayscale output (readable when zoomed) is 184 MB in 179 s;
+`--bilevel` drops it to 24 MB but kills legibility at 8px (verified with tesseract:
+grayscale OCRs cleanly, 1-bit does not). Previews live in `docs/`, the full 1-bit
+poster is attached to the Releases.
 
 License: GPL-3.0.
